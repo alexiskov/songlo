@@ -7,11 +7,6 @@ import (
 )
 
 type (
-	DBManager interface {
-		FindArtist(adrtistID uint, key string, lim, off int64) (count int64, groupList []ArtistEntity, err error)
-		FindSongs(artistID uint, key string, lim, off int64) (count int64, songList []SongEntity, err error)
-	}
-
 	DataBase struct {
 		Socket *gorm.DB
 	}
@@ -20,20 +15,22 @@ type (
 type (
 	ArtistEntity struct {
 		gorm.Model
-		Name string
+		Name  string
+		Songs []SongEntity `gorm:"foreignKey: Artist"`
 	}
 
 	SongEntity struct {
 		gorm.Model
-		Artist      []ArtistEntity
+		Artist      uint
 		Name        string
 		ReleaseDate time.Time
 		Link        string
+		Text        []CoupletEntity `gorm:"foreignKey: SongID"`
 	}
 
 	CoupletEntity struct {
 		gorm.Model
-		SongName   []SongEntity
+		SongID     uint
 		CoupletNum uint8
 		Text       string
 	}

@@ -15,5 +15,6 @@ type (
 		Username string `env:"DB_USER"`
 		Password string `env:"DB_PASSWORD"`
 		Port     uint16 `env:"DB_PORT"`
+		DBname   string `env:"DB_NAME"`
 	}
 )

@@ -1,16 +1,26 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"songlib/confreader"
+	"songlib/htpsrv"
+	"songlib/psql"
 )
 
 func main() {
-	config, err := confreader.LoadConfig()
+	conf, err := confreader.LoadConfig()
 	if err != nil {
 		log.Println(err)
+		return
+	}
+	err = psql.Init(conf.DMS.Host, conf.DMS.Username, conf.DMS.Password, conf.DMS.DBname, conf.DMS.Port)
+	if err != nil {
+		log.Println(err)
+		return
 	}
 
-	fmt.Printf("%+v", config)
+	if err = htpsrv.New(conf.Server.Port).Start(); err != nil {
+		log.Println(err)
+		return
+	}
 }
