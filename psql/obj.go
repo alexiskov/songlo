@@ -8,7 +8,8 @@ import (
 
 type (
 	DBManager interface {
-		FindAllGroups() ([]GroupEntity, error)
+		FindArtist(adrtistID uint, key string, lim, off int64) (count int64, groupList []ArtistEntity, err error)
+		FindSongs(artistID uint, key string, lim, off int64) (count int64, songList []SongEntity, err error)
 	}
 
 	DataBase struct {
@@ -17,14 +18,14 @@ type (
 )
 
 type (
-	GroupEntity struct {
+	ArtistEntity struct {
 		gorm.Model
 		Name string
 	}
 
 	SongEntity struct {
 		gorm.Model
-		Group       []GroupEntity
+		Artist      []ArtistEntity
 		Name        string
 		ReleaseDate time.Time
 		Link        string
