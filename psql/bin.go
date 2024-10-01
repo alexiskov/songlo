@@ -47,12 +47,17 @@ func FindSongsByName(key string, lim, off int64) (count int64, songList []SongEn
 	return
 }
 
+func (artist ArtistEntity) GetSongs() (songs []SongEntity, err error) {
+	err = DB.Where("artist=?", artist.ID).Find(&songs).Error
+	return
+}
+
 func (song SongEntity) GetArtist() (artist ArtistEntity, err error) {
 	err = DB.Where("id=?", song.Artist).First(&artist).Error
 	return
 }
 
-func (artist *ArtistEntity) GetSongs() (songs []SongEntity, err error) {
-	err = DB.Where("artist=?", artist.ID).Find(&songs).Error
+func (song SongEntity) ShowText() (couplets []CoupletEntity, err error) {
+
 	return
 }
