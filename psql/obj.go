@@ -7,8 +7,9 @@ import (
 )
 
 type (
-	DataBase struct {
-		Socket *gorm.DB
+	SQlResponse struct {
+		Count int64
+		Data  interface{}
 	}
 )
 
@@ -30,8 +31,7 @@ type (
 
 	CoupletEntity struct {
 		gorm.Model
-		SongID     uint
-		CoupletNum uint8
-		Text       string
+		SongID uint
+		Text   string
 	}
 )
