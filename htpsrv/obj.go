@@ -20,3 +20,29 @@ type (
 		Page   uint
 	}
 )
+
+type (
+	SongRespEntity struct {
+		PgCount int64            `json:"paginationCount"`
+		Songs   []SongInfoEntity `json:"songs"`
+	}
+
+	SongInfoEntity struct {
+		Artist string `json:"group"`
+		Song   string `json:"song"`
+	}
+
+	SongEntity struct {
+		Artist      string           `json:"group"`
+		Name        string           `json:"song"`
+		ReleaseDate string           `json:"releaseDate"`
+		Link        string           `json:"link"`
+		PgTextCount int64            `json:"coupletPaginationCount"`
+		Text        []SongTextEntity `json:"text"`
+	}
+
+	SongTextEntity struct {
+		Number  int64  `json:"number"`
+		Couplet string `json:"couplet"`
+	}
+)
