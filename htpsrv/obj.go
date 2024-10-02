@@ -8,7 +8,7 @@ type (
 	}
 
 	URLQueryParamsEntity struct {
-		Artist       string
+		Group        string
 		Song         string
 		ReleaseDate  int64
 		TextFragment string
@@ -28,12 +28,12 @@ type (
 	}
 
 	SongInfoEntity struct {
-		Artist string `json:"group"`
-		Song   string `json:"song"`
+		Group string `json:"group"`
+		Song  string `json:"song"`
 	}
 
 	SongEntity struct {
-		Artist      string           `json:"group"`
+		Group       string           `json:"group"`
 		Name        string           `json:"song"`
 		ReleaseDate string           `json:"releaseDate"`
 		Link        string           `json:"link"`

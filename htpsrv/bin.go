@@ -46,7 +46,7 @@ func getProcessing(w http.ResponseWriter, r *http.Request) {
 	case "/info":
 		v := u.Query()
 
-		params := URLQueryParamsEntity{Artist: v.Get("group"), Song: v.Get("song"), TextFragment: v.Get("textFragment")}
+		params := URLQueryParamsEntity{Group: v.Get("group"), Song: v.Get("song"), TextFragment: v.Get("textFragment")}
 
 		rd := v.Get("releaseDate")
 		if rd != "" {
@@ -80,3 +80,5 @@ func getProcessing(w http.ResponseWriter, r *http.Request) {
 	}
 
 }
+
+func GetSongs()
