@@ -15,7 +15,7 @@ func New(port uint16) ServerEntity {
 
 func (srv ServerEntity) Start() (err error) {
 	http.HandleFunc("/", router)
-	srv.Http.ListenAndServe()
+	err = srv.Http.ListenAndServe()
 	return
 }
 
@@ -38,6 +38,8 @@ func getProcessing(w http.ResponseWriter, r *http.Request) {
 	u, err := url.Parse(r.URL.String())
 	if err != nil {
 		log.Println(err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
 	}
 
 	switch u.Path {
@@ -53,6 +55,7 @@ func getProcessing(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				err = fmt.Errorf("query param time parsing error: %w", err)
 				log.Println(err)
+				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
 			params.ReleaseDate = t.Unix()
@@ -62,13 +65,18 @@ func getProcessing(w http.ResponseWriter, r *http.Request) {
 		if p != "" {
 			pi, err := strconv.Atoi(p)
 			if err != nil {
+				err = fmt.Errorf("GET: query param `page` to integer type parsing error: %w", err)
 				log.Println(err)
+				w.WriteHeader(http.StatusBadRequest)
+				return
 			}
 			params.Page = uint64(pi)
 		}
 
 	case "/geText":
 
+	default:
+		w.WriteHeader(http.StatusBadRequest)
 	}
 
 }
