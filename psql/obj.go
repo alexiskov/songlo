@@ -1,8 +1,6 @@
 package psql
 
 import (
-	"time"
-
 	"gorm.io/gorm"
 )
 
@@ -24,7 +22,7 @@ type (
 		gorm.Model
 		Artist      uint
 		Name        string
-		ReleaseDate time.Time
+		ReleaseDate int64
 		Link        string
 		Text        []CoupletEntity `gorm:"foreignKey: SongID"`
 	}
