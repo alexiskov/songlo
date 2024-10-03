@@ -12,7 +12,7 @@ type (
 		Song         string
 		ReleaseDate  int64
 		TextFragment string
-		Page         uint64
+		Page         int
 	}
 
 	URLQuerySongParamsEntity struct {

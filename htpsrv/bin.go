@@ -14,7 +14,7 @@ import (
 
 var (
 	// в тз не сказано с каким шагом выполнить пагинацию и будем ли мы получать данные для нее от клиента, потому считаем что жлементов на странице 1
-	SongPGstep uint64 = 1
+	SongPGstep int = 1
 )
 
 func New(port uint16) ServerEntity {
@@ -83,7 +83,7 @@ func getProcessing(w http.ResponseWriter, r *http.Request) {
 			if pi < 1 {
 				pi = 1
 			}
-			params.Page = uint64(pi)
+			params.Page = pi
 		}
 
 		sresp, err := params.SongFindingAndPrepare(SongPGstep)
@@ -162,7 +162,7 @@ func postProcessing(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (queryParams URLQueryParamsEntity) SongFindingAndPrepare(paginationDivider uint64) (sresponse SongRespEntity, err error) {
+func (queryParams URLQueryParamsEntity) SongFindingAndPrepare(paginationDivider int) (sresponse SongRespEntity, err error) {
 	if queryParams.Group == "" && queryParams.TextFragment == "" {
 		c, resp, err := psql.FindSongs(queryParams.Song, queryParams.ReleaseDate, paginationDivider, paginationDivider*queryParams.Page)
 		if err != nil {
