@@ -28,7 +28,7 @@ type (
 	}
 
 	SongDetailEntity struct {
-		ID          uint   `yaml:"sindID"`
+		ID          uint   `yaml:"sondID"`
 		Group       string `json:"group"`
 		Name        string `json:"song"`
 		ReleaseDate string `json:"releaseDate"`

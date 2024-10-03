@@ -173,10 +173,12 @@ func AddSong(artistName, songName, link string, text string, releaseDate int64) 
 
 	if text != "" {
 		tempCouplets := strings.Split(text, "\n\n")
+		couplets := make([]CoupletEntity, 0, len(tempCouplets))
 		for _, c := range tempCouplets {
-			if err = DB.Create(&CoupletEntity{Text: c, SongID: song.ID}).Error; err != nil {
-				return fmt.Errorf("couplet to new song adding error: %w", err)
-			}
+			couplets = append(couplets, CoupletEntity{Text: c, SongID: song.ID})
+		}
+		if err = DB.Create(&couplets).Error; err != nil {
+			return fmt.Errorf("couplets to new song adding error: %w", err)
 		}
 	}
 

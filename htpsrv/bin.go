@@ -3,6 +3,7 @@ package htpsrv
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -34,7 +35,7 @@ func router(w http.ResponseWriter, r *http.Request) {
 		putProcessing(w, r)
 	}
 	if r.Method == http.MethodPost {
-
+		postProcessing(w, r)
 	}
 	if r.Method == http.MethodDelete {
 
@@ -42,6 +43,8 @@ func router(w http.ResponseWriter, r *http.Request) {
 }
 
 // ------------ QUERY PROCESSING -----------
+
+// обработка GET звпроса
 func getProcessing(w http.ResponseWriter, r *http.Request) {
 	u, err := url.Parse(r.URL.String())
 	if err != nil {
@@ -107,8 +110,56 @@ func getProcessing(w http.ResponseWriter, r *http.Request) {
 
 }
 
+// обработка PUT запроса
 func putProcessing(w http.ResponseWriter, r *http.Request) {
 
+}
+
+// обработка POST запроса
+func postProcessing(w http.ResponseWriter, r *http.Request) {
+	u, err := url.Parse(r.URL.String())
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	switch u.Path {
+	case "/addsong":
+		q, err := io.ReadAll(r.Body)
+		if err != nil {
+			log.Println(fmt.Errorf("addsong query reading error: %w", err))
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		song := SongDetailEntity{}
+		if err = json.Unmarshal(q, &song); err != nil {
+			log.Println(fmt.Errorf("addsong query parsing error: %w", err))
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		if song.Group == "" || song.Name == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		tt, err := time.Parse("02.01.2006", song.ReleaseDate)
+		var rd int64 = 0
+		if err != nil {
+			log.Println(fmt.Errorf("song addig: query param releaseDate parsing error: %w\n continue", err))
+		} else {
+			rd = tt.Unix()
+		}
+
+		if err = psql.AddSong(song.Group, song.Name, song.Link, song.Text, rd); err != nil {
+			log.Println(err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	default:
+		w.WriteHeader(http.StatusBadRequest)
+	}
 }
 
 func (queryParams URLQueryParamsEntity) SongFindingAndPrepare(paginationDivider uint64) (sresponse SongRespEntity, err error) {
