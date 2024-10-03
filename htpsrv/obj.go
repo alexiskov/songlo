@@ -23,26 +23,23 @@ type (
 
 type (
 	SongRespEntity struct {
-		PgCount int64            `json:"paginationCount"`
-		Songs   []SongInfoEntity `json:"songs"`
+		PgCount int64              `json:"paginationCount"`
+		Songs   []SongDetailEntity `json:"songs"`
 	}
 
-	SongInfoEntity struct {
-		Group string `json:"group"`
-		Song  string `json:"song"`
-	}
-
-	SongEntity struct {
-		Group       string           `json:"group"`
-		Name        string           `json:"song"`
-		ReleaseDate string           `json:"releaseDate"`
-		Link        string           `json:"link"`
-		PgTextCount int64            `json:"coupletPaginationCount"`
-		Text        []SongTextEntity `json:"text"`
+	SongDetailEntity struct {
+		ID          uint   `yaml:"sindID"`
+		Group       string `json:"group"`
+		Name        string `json:"song"`
+		ReleaseDate string `json:"releaseDate"`
+		Link        string `json:"link"`
+		Text        string `json:"text"`
 	}
 
 	SongTextEntity struct {
-		Number  int64  `json:"number"`
-		Couplet string `json:"couplet"`
+		SongName    string `json:"songName"`
+		PgTextCount int64  `json:"coupletPaginationCount"`
+		Number      int64  `json:"number"`
+		Couplet     string `json:"couplet"`
 	}
 )

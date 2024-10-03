@@ -32,4 +32,7 @@ type (
 		SongID uint
 		Text   string
 	}
+
+	SongsEnts    []SongEntity
+	CoupletsEnts []CoupletEntity
 )

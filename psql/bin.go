@@ -1,7 +1,9 @@
 package psql
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -19,6 +21,8 @@ func Init(host, usr, psswd, dbname string, port uint16) (err error) {
 	return
 }
 
+//-------------------------- GETTERS -----------------------
+
 // отдает список групп
 func FindArtistByName(key string) (groupList []ArtistEntity, err error) {
 	if err = DB.Where("name LIKE ?", "%"+key+"%").Find(&groupList).Error; err != nil {
@@ -28,7 +32,7 @@ func FindArtistByName(key string) (groupList []ArtistEntity, err error) {
 }
 
 // отдает список песен группы
-func (artist ArtistEntity) GetSongs(key string, dateRelease int64, lim, off int64) (response SQlResponse, err error) {
+func (artist ArtistEntity) GetSongs(key string, dateRelease int64, lim, off uint64) (response SQlResponse, err error) {
 	if dateRelease != 0 {
 		if err = DB.Model(&SongEntity{}).Where("artist=? AND name LIKE ? AND release_date=?", artist.ID, "%"+key+"%", dateRelease).Count(&response.Count).Error; err != nil {
 			err = fmt.Errorf("(artist).get songs: songs count finding error: %w", err)
@@ -48,23 +52,21 @@ func (artist ArtistEntity) GetSongs(key string, dateRelease int64, lim, off int6
 }
 
 // отдает список песен
-func FindSongs(key string, dateRelease int64, lim, off int64) (response SQlResponse, err error) {
+func FindSongs(key string, dateRelease int64, lim, off uint64) (count int64, response []SongEntity, err error) {
 	if dateRelease != 0 {
-		if err = DB.Model(&SongEntity{}).Where("name LIKE ? AND release_date=?", "%"+key+"%", dateRelease).Count(&response.Count).Error; err != nil {
+		if err = DB.Model(&SongEntity{}).Where("name LIKE ? AND release_date=?", "%"+key+"%", dateRelease).Count(&count).Error; err != nil {
 			err = fmt.Errorf("count of songs getting error: %w", err)
 			return
 		}
-		response.Data = make([]SongEntity, 0, response.Count)
-		if err = DB.Where("name LIKE ? AND release_date=? LIMIT ? OFFSET ?", "%"+key+"%", dateRelease, lim, off).Find(&response.Data).Error; err != nil {
+		if err = DB.Where("name LIKE ? AND release_date=? LIMIT ? OFFSET ?", "%"+key+"%", dateRelease, lim, off).Find(&response).Error; err != nil {
 			return
 		}
 	} else {
-		if err = DB.Model(&SongEntity{}).Where("name LIKE ?", "%"+key+"%").Count(&response.Count).Error; err != nil {
+		if err = DB.Model(&SongEntity{}).Where("name LIKE ?", "%"+key+"%").Count(&count).Error; err != nil {
 			err = fmt.Errorf("count of songs getting error: %w", err)
 			return
 		}
-		response.Data = make([]SongEntity, 0, response.Count)
-		if err = DB.Where("name LIKE ? LIMIT ? OFFSET ?", "%"+key+"%", lim, off).Find(&response.Data).Error; err != nil {
+		if err = DB.Where("name LIKE ? LIMIT ? OFFSET ?", "%"+key+"%", lim, off).Find(&response).Error; err != nil {
 			return
 		}
 	}
@@ -79,17 +81,16 @@ func (song SongEntity) GetArtist() (artist ArtistEntity, err error) {
 }
 
 // показывает текст песни по куплетам
-func (song SongEntity) ShowText(lim, off int64) (resp SQlResponse, err error) {
-	if err = DB.Where("song_id=?", song.ID).Find(&resp.Count).Error; err != nil {
+func (song SongEntity) ShowText(lim, off uint64) (count int64, resp []CoupletEntity, err error) {
+	if err = DB.Where("song_id=?", song.ID).Find(&count).Error; err != nil {
 		return
 	}
-	resp.Data = make([]CoupletEntity, 0, lim)
-	err = DB.Where("song_id=? LIMIT ? OFFSET ?", song.ID, lim, off).Find(&resp.Data).Error
+	err = DB.Where("song_id=? LIMIT ? OFFSET ?", song.ID, lim, off).Find(&resp).Error
 	return
 }
 
 // ищет песню по тексту
-func FindSongByText(key string, dateRelease int64, lim, off int64) (resp SQlResponse, err error) {
+func FindSongByText(key string, dateRelease int64, lim, off uint64) (resp SQlResponse, err error) {
 	if err = DB.Model(&CoupletEntity{}).Where("text LIKE ?", "%"+key+"%").Count(&resp.Count).Error; err != nil {
 		err = fmt.Errorf("song by text: couplet count finding error: %w", err)
 		return
@@ -116,8 +117,7 @@ func FindSongByText(key string, dateRelease int64, lim, off int64) (resp SQlResp
 
 	if dateRelease != 0 {
 		if err = DB.Model(&SongEntity{}).Where("id IN ? and release_date=?", songIDs, dateRelease).Count(&resp.Count).Error; err != nil {
-			err = fmt.Errorf("song by text count finding error: %w", err)
-			return
+			return resp, fmt.Errorf("song by text count finding error: %w", err)
 		}
 
 		resp.Data = make([]SongEntity, 0, resp.Count)
@@ -125,8 +125,7 @@ func FindSongByText(key string, dateRelease int64, lim, off int64) (resp SQlResp
 		err = DB.Where("id IN ? AND release_date=? LIMIT ? OFFSET ?", songIDs, dateRelease, lim, off).Find(&resp.Data).Error
 	} else {
 		if err = DB.Model(&SongEntity{}).Where("id IN ?", songIDs).Count(&resp.Count).Error; err != nil {
-			err = fmt.Errorf("song by text count finding error: %w", err)
-			return
+			return resp, fmt.Errorf("song by text count finding error: %w", err)
 		}
 
 		resp.Data = make([]SongEntity, 0, resp.Count)
@@ -134,4 +133,52 @@ func FindSongByText(key string, dateRelease int64, lim, off int64) (resp SQlResp
 		err = DB.Where("id IN ? LIMIT ? OFFSET ?", songIDs, lim, off).Find(&resp.Data).Error
 	}
 	return
+}
+
+//---------- SETTERS --------------
+
+// Добавляет песню
+// Агрументом принимает: Название группы, Название песни, Ссылку, Текст песни, Дату выхода
+// Возвращает ошибку или nil
+func AddSong(artistName, songName, link string, text string, releaseDate int64) (err error) {
+	art, err := FindArtistByName(artistName)
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return
+		}
+	}
+
+	find := false
+	for _, a := range art {
+		if strings.Replace(strings.ToLower(artistName), " ", "", -1) == strings.Replace(strings.ToLower(a.Name), " ", "", -1) {
+			find = true
+			art = nil
+			art = append(art, a)
+		}
+	}
+
+	if !find {
+		a := ArtistEntity{Name: artistName}
+		if err = DB.Create(&a).Error; err != nil {
+			return fmt.Errorf("new artist creating error: %w", err)
+		}
+		art = nil
+		art = append(art, a)
+	}
+
+	song := SongEntity{Artist: art[0].ID, Name: songName, ReleaseDate: releaseDate, Link: link}
+	if err = DB.Create(&song).Error; err != nil {
+		return fmt.Errorf("new song creating error: %w", err)
+	}
+
+	if text != "" {
+		tempCouplets := strings.Split(text, "\n\n")
+		for _, c := range tempCouplets {
+			if err = DB.Create(&CoupletEntity{Text: c, SongID: song.ID}).Error; err != nil {
+				return fmt.Errorf("couplet to new song adding error: %w", err)
+			}
+		}
+	}
+
+	return nil
 }

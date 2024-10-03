@@ -1,12 +1,19 @@
 package htpsrv
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"net/url"
+	"songlib/psql"
 	"strconv"
 	"time"
+)
+
+var (
+	// в тз не сказано с каким шагом выполнить пагинацию и будем ли мы получать данные для нее от клиента, потому считаем что жлементов на странице 1
+	SongPGstep uint64 = 1
 )
 
 func New(port uint16) ServerEntity {
@@ -24,7 +31,7 @@ func router(w http.ResponseWriter, r *http.Request) {
 		getProcessing(w, r)
 	}
 	if r.Method == http.MethodPut {
-
+		putProcessing(w, r)
 	}
 	if r.Method == http.MethodPost {
 
@@ -34,6 +41,7 @@ func router(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ------------ QUERY PROCESSING -----------
 func getProcessing(w http.ResponseWriter, r *http.Request) {
 	u, err := url.Parse(r.URL.String())
 	if err != nil {
@@ -41,11 +49,10 @@ func getProcessing(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+	v := u.Query()
 
 	switch u.Path {
 	case "/info":
-		v := u.Query()
-
 		params := URLQueryParamsEntity{Group: v.Get("group"), Song: v.Get("song"), TextFragment: v.Get("textFragment")}
 
 		rd := v.Get("releaseDate")
@@ -70,8 +77,27 @@ func getProcessing(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
+			if pi < 1 {
+				pi = 1
+			}
 			params.Page = uint64(pi)
 		}
+
+		sresp, err := params.SongFindingAndPrepare(SongPGstep)
+		if err != nil {
+			log.Println(err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		b, err := json.Marshal(sresp)
+		if err != nil {
+			log.Println(err)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		w.Write(b)
 
 	case "/geText":
 
@@ -81,4 +107,36 @@ func getProcessing(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func GetSongs()
+func putProcessing(w http.ResponseWriter, r *http.Request) {
+
+}
+
+func (queryParams URLQueryParamsEntity) SongFindingAndPrepare(paginationDivider uint64) (sresponse SongRespEntity, err error) {
+	if queryParams.Group == "" && queryParams.TextFragment == "" {
+		c, resp, err := psql.FindSongs(queryParams.Song, queryParams.ReleaseDate, paginationDivider, paginationDivider*queryParams.Page)
+		if err != nil {
+			return sresponse, err
+		}
+		sresponse.PgCount = c
+		for _, s := range resp {
+			artist, err := s.GetArtist()
+			if err != nil {
+				return sresponse, err
+			}
+
+			tempDate := ""
+			if s.ReleaseDate != 0 {
+				tempDate = time.Unix(s.ReleaseDate, 0).Format("02.01.2006")
+			} else {
+				tempDate = "-"
+			}
+
+			_, c, err := s.ShowText(1, 0)
+			if err != nil {
+				return sresponse, err
+			}
+			sresponse.Songs = append(sresponse.Songs, SongDetailEntity{ID: s.ID, Group: artist.Name, Name: s.Name, Link: s.Link, ReleaseDate: tempDate, Text: c[0].Text})
+		}
+	}
+	return
+}
