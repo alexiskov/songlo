@@ -80,10 +80,11 @@ func getProcessing(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			if pi < 1 {
-				pi = 1
-			}
 			params.Page = pi
+		}
+
+		if params.Page == 0 {
+			params.Page = 1
 		}
 
 		sresp, err := params.SongFindingAndPrepare(SongPGstep)
@@ -162,12 +163,13 @@ func postProcessing(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (queryParams URLQueryParamsEntity) SongFindingAndPrepare(paginationDivider int) (sresponse SongRespEntity, err error) {
+func (queryParams URLQueryParamsEntity) SongFindingAndPrepare(limitOnPage int) (sresponse SongRespEntity, err error) {
 	if queryParams.Group == "" && queryParams.TextFragment == "" {
-		c, resp, err := psql.FindSongs(queryParams.Song, queryParams.ReleaseDate, paginationDivider, paginationDivider*queryParams.Page)
+		c, resp, err := psql.FindSongs(queryParams.Song, queryParams.ReleaseDate, limitOnPage, limitOnPage*queryParams.Page)
 		if err != nil {
 			return sresponse, err
 		}
+
 		sresponse.PgCount = c
 		for _, s := range resp {
 			artist, err := s.GetArtist()
