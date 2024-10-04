@@ -106,7 +106,7 @@ func getProcessing(w http.ResponseWriter, r *http.Request) {
 
 		w.Write(b)
 
-	case "/geText":
+	case "/getAllTxt":
 
 	default:
 		w.WriteHeader(http.StatusBadRequest)
@@ -167,32 +167,54 @@ func postProcessing(w http.ResponseWriter, r *http.Request) {
 }
 
 func (queryParams URLQueryParamsEntity) SongFindingAndPrepare(limitOnPage int) (sresponse SongRespEntity, err error) {
+	var c int64
+	var resp psql.SongsEnts
+	var groupList psql.ArtistsEnts
 	if queryParams.Group == "" && queryParams.TextFragment == "" {
-		c, resp, err := psql.FindSongs(queryParams.Song, queryParams.ReleaseDate, limitOnPage, limitOnPage*queryParams.Page)
+		c, resp, err = psql.FindSongs(queryParams.Song, queryParams.ReleaseDate, limitOnPage, limitOnPage*queryParams.Page)
 		if err != nil {
 			return sresponse, err
 		}
 
-		sresponse.PgCount = c
-		for _, s := range resp {
-			artist, err := s.GetArtist()
-			if err != nil {
-				return sresponse, err
-			}
-
-			tempDate := ""
-			if s.ReleaseDate != 0 {
-				tempDate = time.Unix(s.ReleaseDate, 0).Format("02.01.2006")
-			} else {
-				tempDate = "-"
-			}
-
-			_, c, err := s.ShowText(1, 0)
-			if err != nil {
-				return sresponse, err
-			}
-			sresponse.Songs = append(sresponse.Songs, SongDetailEntity{ID: s.ID, Group: artist.Name, Name: s.Name, Link: s.Link, ReleaseDate: tempDate, Text: c[0].Text})
+	} else if queryParams.Group != "" {
+		groupList, err = psql.FindArtistByName(queryParams.Group)
+		if err != nil {
+			return sresponse, err
 		}
+		c, resp, err = groupList.GetSongs(queryParams.Song, queryParams.ReleaseDate, limitOnPage, limitOnPage*queryParams.Page)
+		if err != nil {
+			return sresponse, err
+		}
+	}
+	if queryParams.TextFragment != "" {
+		gl := []uint{}
+		for _, g := range groupList {
+			gl = append(gl, g.ID)
+		}
+		c, resp, err = psql.FindSongByText(gl, queryParams.Song, queryParams.ReleaseDate, limitOnPage, limitOnPage*queryParams.Page)
+		if err != nil {
+			return sresponse, err
+		}
+	}
+	sresponse.PgCount = c
+	for _, s := range resp {
+		artist, err := s.GetArtist()
+		if err != nil {
+			return sresponse, err
+		}
+
+		tempDate := ""
+		if s.ReleaseDate != 0 {
+			tempDate = time.Unix(s.ReleaseDate, 0).Format("02.01.2006")
+		} else {
+			tempDate = "-"
+		}
+
+		_, c, err := s.ShowText(1, 0)
+		if err != nil {
+			return sresponse, err
+		}
+		sresponse.Songs = append(sresponse.Songs, SongDetailEntity{ID: s.ID, Group: artist.Name, Name: s.Name, Link: s.Link, ReleaseDate: tempDate, Text: c[0].Text})
 	}
 	return
 }

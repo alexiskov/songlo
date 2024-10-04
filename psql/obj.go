@@ -33,6 +33,6 @@ type (
 		Text   string
 	}
 
-	SongsEnts    []SongEntity
-	CoupletsEnts []CoupletEntity
+	SongsEnts   []SongEntity
+	ArtistsEnts []ArtistEntity
 )
