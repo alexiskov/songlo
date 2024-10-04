@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
+
+	"songlib/logger"
 	"songlib/psql"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -23,6 +25,7 @@ func New(port uint16) ServerEntity {
 
 func (srv ServerEntity) Start() (err error) {
 	http.HandleFunc("/", router)
+	logger.Log.Info(fmt.Sprintf("server  started on port  %s", srv.Http.Addr))
 	err = srv.Http.ListenAndServe()
 	return
 }
@@ -48,7 +51,7 @@ func router(w http.ResponseWriter, r *http.Request) {
 func getProcessing(w http.ResponseWriter, r *http.Request) {
 	u, err := url.Parse(r.URL.String())
 	if err != nil {
-		log.Println(err)
+		logger.Log.Debug(err.Error())
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -56,7 +59,7 @@ func getProcessing(w http.ResponseWriter, r *http.Request) {
 
 	switch u.Path {
 	case "/info":
-		params := URLQueryParamsEntity{Group: v.Get("group"), Song: v.Get("song"), TextFragment: v.Get("textFragment")}
+		params := URLQueryParamsEntity{Group: strings.ToLower(v.Get("group")), Song: strings.ToLower(v.Get("song")), TextFragment: strings.ToLower(v.Get("textFragment"))}
 
 		rd := v.Get("releaseDate")
 		if rd != "" {
@@ -64,7 +67,7 @@ func getProcessing(w http.ResponseWriter, r *http.Request) {
 			t, err := time.Parse("02.01.2006", rd)
 			if err != nil {
 				err = fmt.Errorf("query param time parsing error: %w", err)
-				log.Println(err)
+				logger.Log.Debug(err.Error())
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
@@ -76,7 +79,7 @@ func getProcessing(w http.ResponseWriter, r *http.Request) {
 			pi, err := strconv.Atoi(p)
 			if err != nil {
 				err = fmt.Errorf("GET: query param `page` to integer type parsing error: %w", err)
-				log.Println(err)
+				logger.Log.Debug(err.Error())
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
@@ -89,14 +92,14 @@ func getProcessing(w http.ResponseWriter, r *http.Request) {
 
 		sresp, err := params.SongFindingAndPrepare(SongPGstep)
 		if err != nil {
-			log.Println(err)
+			logger.Log.Debug(err.Error())
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
 		b, err := json.Marshal(sresp)
 		if err != nil {
-			log.Println(err)
+			logger.Log.Debug(err.Error())
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
@@ -120,7 +123,7 @@ func putProcessing(w http.ResponseWriter, r *http.Request) {
 func postProcessing(w http.ResponseWriter, r *http.Request) {
 	u, err := url.Parse(r.URL.String())
 	if err != nil {
-		log.Println(err)
+		logger.Log.Debug(err.Error())
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -128,14 +131,14 @@ func postProcessing(w http.ResponseWriter, r *http.Request) {
 	case "/addsong":
 		q, err := io.ReadAll(r.Body)
 		if err != nil {
-			log.Println(fmt.Errorf("addsong query reading error: %w", err))
+			logger.Log.Debug(fmt.Errorf("addsong query reading error: %w", err).Error())
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
 		song := SongDetailEntity{}
 		if err = json.Unmarshal(q, &song); err != nil {
-			log.Println(fmt.Errorf("addsong query parsing error: %w", err))
+			logger.Log.Debug(fmt.Errorf("addsong query parsing error: %w", err).Error())
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -147,13 +150,13 @@ func postProcessing(w http.ResponseWriter, r *http.Request) {
 		tt, err := time.Parse("02.01.2006", song.ReleaseDate)
 		var rd int64 = 0
 		if err != nil {
-			log.Println(fmt.Errorf("song addig: query param releaseDate parsing error: %w\n continue", err))
+			logger.Log.Debug(fmt.Errorf("song addig: query param releaseDate parsing error: %w\n continue", err).Error())
 		} else {
 			rd = tt.Unix()
 		}
 
 		if err = psql.AddSong(song.Group, song.Name, song.Link, song.Text, rd); err != nil {
-			log.Println(err)
+			logger.Log.Debug(err.Error())
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}

@@ -7,12 +7,13 @@ import (
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 var DB *gorm.DB
 
 func Init(host, usr, psswd, dbname string, port uint16) (err error) {
-	DB, err = gorm.Open(postgres.Open(fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=disable ", host, usr, psswd, dbname, port)), &gorm.Config{})
+	DB, err = gorm.Open(postgres.Open(fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=disable ", host, usr, psswd, dbname, port)), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
 	if err == nil {
 		if DB.AutoMigrate(&ArtistEntity{}, &SongEntity{}, &CoupletEntity{}) != nil {
 			return
@@ -53,7 +54,7 @@ func (artist ArtistEntity) GetSongs(key string, dateRelease int64, lim, off int)
 func FindSongs(key string, dateRelease int64, lim, off int) (count int64, response SongsEnts, err error) {
 	off--
 	if dateRelease != 0 {
-		if err = DB.Model(&SongEntity{}).Where("name LIKE ? AND release_date=?", "%"+key+"%", dateRelease).Count(&count).Error; err != nil {
+		if err = DB.Model(&SongEntity{}).Where("name LIKE LOWER ? AND release_date=?", "%"+key+"%", dateRelease).Count(&count).Error; err != nil {
 			err = fmt.Errorf("count of songs getting error: %w", err)
 			return
 		}
@@ -66,7 +67,7 @@ func FindSongs(key string, dateRelease int64, lim, off int) (count int64, respon
 			err = fmt.Errorf("count of songs getting error: %w", err)
 			return
 		}
-		if err = DB.Where("name LIKE ?", "%"+key+"%").Limit(lim).Offset(off).Find(&response).Error; err != nil {
+		if err = DB.Where("name LIKE ? ", "%"+key+"%").Limit(lim).Offset(off).Find(&response).Error; err != nil {
 			err = fmt.Errorf("song finding without release adte error: %w", err)
 			return
 		}
