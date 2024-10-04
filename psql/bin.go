@@ -111,7 +111,7 @@ func (song SongEntity) ShowText(lim, off int) (count int64, resp []CoupletEntity
 	return
 }
 
-// ищет песню по тексту
+// ищет песню по тексту, опционально: []id группы,название песни, дата релиза
 func FindSongByText(artistIDs []uint, key string, dateRelease int64, lim, off int) (count int64, resp SongsEnts, err error) {
 	if err = DB.Model(&CoupletEntity{}).Where("LOWER(text) LIKE ?", "%"+key+"%").Count(&count).Error; err != nil {
 		err = fmt.Errorf("song by text: couplet count finding error: %w", err)
