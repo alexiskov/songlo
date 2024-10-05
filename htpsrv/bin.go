@@ -16,7 +16,8 @@ import (
 
 var (
 	// в тз не сказано с каким шагом выполнить пагинацию и будем ли мы получать данные для нее от клиента, потому считаем что жлементов на странице 1
-	SongPGstep int = 1
+	SongPGstep     int = 1
+	SongTextPGstep int = 1
 )
 
 func New(port uint16) ServerEntity {
@@ -41,7 +42,27 @@ func router(w http.ResponseWriter, r *http.Request) {
 		postProcessing(w, r)
 	}
 	if r.Method == http.MethodDelete {
+		if j, err := io.ReadAll(r.Body); err != nil {
+			logger.Log.Debug(fmt.Errorf("query on deleting song reading error: %w", err).Error())
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		} else {
+			delSongQr := URLQuerySongParamsEntity{}
+			if err = json.Unmarshal(j, &delSongQr); err != nil {
+				logger.Log.Debug(fmt.Errorf("query on deleting song json parsing error: %w", err).Error())
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
 
+			if err = psql.Remove(delSongQr.SongID); err != nil {
+				logger.Log.Debug(err.Error())
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			} else {
+				w.WriteHeader(http.StatusOK)
+			}
+
+		}
 	}
 }
 
@@ -107,6 +128,39 @@ func getProcessing(w http.ResponseWriter, r *http.Request) {
 		w.Write(b)
 
 	case "/getAllTxt":
+		songID, err := strconv.Atoi(v.Get("id"))
+		if err != nil {
+			logger.Log.Debug(err.Error())
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		pageNum, err := strconv.Atoi(v.Get("page"))
+		if err != nil {
+			logger.Log.Debug(err.Error())
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		queryParams := URLQuerySongParamsEntity{SongID: uint(songID), Page: uint(pageNum)}
+		if queryParams.SongID == 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			logger.Log.Debug("get all text input query param songID == 0, expected >0")
+			return
+		}
+
+		t, err := queryParams.SongTextFindingAndPrepare()
+		if err != nil {
+			logger.Log.Debug(err.Error())
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		if b, err := json.Marshal(t); err != nil {
+			logger.Log.Debug(fmt.Errorf("song text json marshaling error: %w", err).Error())
+			w.WriteHeader(http.StatusNotFound)
+			return
+		} else {
+			w.Write(b)
+		}
 
 	default:
 		w.WriteHeader(http.StatusBadRequest)
@@ -116,7 +170,37 @@ func getProcessing(w http.ResponseWriter, r *http.Request) {
 
 // обработка PUT запроса
 func putProcessing(w http.ResponseWriter, r *http.Request) {
+	u, err := url.Parse(r.URL.String())
+	if err != nil {
+		logger.Log.Debug(err.Error())
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	switch u.Path {
+	case "/updateSong":
 
+		readByte, err := io.ReadAll(r.Body)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			logger.Log.Debug(fmt.Errorf("updateSong body of query reading error: %w", err).Error())
+			return
+		}
+
+		song := SongDetailEntity{}
+		if err = json.Unmarshal(readByte, &song); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			logger.Log.Debug(fmt.Errorf("update song body of qery parsing error: %w", err).Error())
+			return
+		}
+
+		if err = song.UpdateSong(); err != nil {
+			logger.Log.Debug(err.Error())
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+	default:
+		w.WriteHeader(http.StatusBadRequest)
+	}
 }
 
 // обработка POST запроса
@@ -166,6 +250,7 @@ func postProcessing(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// находит песню и возвращает данные
 func (queryParams URLQueryParamsEntity) SongFindingAndPrepare(limitOnPage int) (sresponse SongRespEntity, err error) {
 	var c int64
 	var resp psql.SongsEnts
@@ -216,5 +301,39 @@ func (queryParams URLQueryParamsEntity) SongFindingAndPrepare(limitOnPage int) (
 		}
 		sresponse.Songs = append(sresponse.Songs, SongDetailEntity{ID: s.ID, Group: artist.Name, Name: s.Name, Link: s.Link, ReleaseDate: tempDate, Text: c[0].Text})
 	}
+	return
+}
+
+// берет текст для песни по id из базы
+func (queryParams URLQuerySongParamsEntity) SongTextFindingAndPrepare() (couplets SongTextEntity, err error) {
+	song := psql.SongEntity{}
+	song.ID = queryParams.SongID
+	c, resp, err := song.ShowText(SongTextPGstep, SongTextPGstep*int(queryParams.Page))
+	if err != nil {
+		return
+	}
+	couplets.PgCount = c
+	for _, t := range resp {
+		couplets.Couplet += "\n\n" + t.Text
+	}
+	return
+}
+
+// обновляет данные песни
+func (queryParams SongDetailEntity) UpdateSong() (err error) {
+	var tt time.Time
+	if queryParams.ReleaseDate != "" {
+		tt, err = time.Parse("02.01.2006", queryParams.ReleaseDate)
+		if err != nil {
+			return fmt.Errorf("update song: time parsing error: %w", err)
+		}
+	}
+	song := psql.SongEntity{Name: queryParams.Name, ReleaseDate: tt.Unix(), Link: queryParams.Link}
+	tsTextArr := strings.Split(queryParams.Text, "\n\n")
+	for _, txt := range tsTextArr {
+		song.Text = append(song.Text, psql.CoupletEntity{Text: txt})
+	}
+
+	err = song.Update(queryParams.Group, queryParams.ID)
 	return
 }

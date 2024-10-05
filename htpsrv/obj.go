@@ -37,9 +37,7 @@ type (
 	}
 
 	SongTextEntity struct {
-		SongName    string `json:"songName"`
-		PgTextCount int64  `json:"coupletPaginationCount"`
-		Number      int64  `json:"number"`
-		Couplet     string `json:"couplet"`
+		PgCount int64  `json:"coupletPaginationCount"`
+		Couplet string `json:"couplet"`
 	}
 )

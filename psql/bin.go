@@ -26,7 +26,7 @@ func Init(host, usr, psswd, dbname string, port uint16) (err error) {
 
 // отдает список групп
 func FindArtistByName(key string) (groupList ArtistsEnts, err error) {
-	if err = DB.Where("LOWER(name) LIKE ?", "%"+key+"%").Find(&groupList).Error; err != nil {
+	if err = DB.Where("LOWER(name) LIKE ?", strings.ToLower("%"+key+"%")).Find(&groupList).Error; err != nil {
 		err = fmt.Errorf("group list finding error: %w", err)
 		return
 	}
@@ -100,6 +100,7 @@ func (song SongEntity) GetArtist() (artist ArtistEntity, err error) {
 
 // показывает текст песни по куплетам
 func (song SongEntity) ShowText(lim, off int) (count int64, resp []CoupletEntity, err error) {
+	off--
 	if err = DB.Model(&CoupletEntity{}).Where("song_id=?", song.ID).Count(&count).Error; err != nil {
 		err = fmt.Errorf("song couplet count finding error: %w", err)
 		return
@@ -230,4 +231,86 @@ func AddSong(artistName, songName, link string, text string, releaseDate int64) 
 	}
 
 	return nil
+}
+
+// обновляет песню в базе
+func (song SongEntity) Update(artistName string, songID uint) (err error) {
+	sqlSong := SongEntity{}
+	if err = DB.Where("id=?", songID).First(&sqlSong).Error; err != nil {
+		return
+	}
+
+	if artistName != "" {
+		art, err := FindArtistByName(artistName)
+		if err != nil {
+			return err
+		}
+
+		find := false
+		for _, a := range art {
+			if strings.ToLower(strings.ReplaceAll(a.Name, " ", "")) == strings.ToLower(strings.ReplaceAll(artistName, " ", "")) {
+				song.Artist = a.ID
+				find = true
+			}
+		}
+
+		if !find {
+			artTemp := ArtistEntity{Name: artistName}
+
+			if err = DB.Create(&artTemp).Error; err != nil {
+				return fmt.Errorf("(update song data) new artist adding error: %w", err)
+			}
+			song.Artist = artTemp.ID
+		}
+	}
+
+	if sqlSong.Name != song.Name && song.Name != "" {
+		sqlSong.Name = song.Name
+	}
+	if sqlSong.Artist != song.Artist && song.Artist != 0 {
+		sqlSong.Artist = song.Artist
+	}
+	if sqlSong.ReleaseDate != song.ReleaseDate {
+		sqlSong.ReleaseDate = song.ReleaseDate
+	}
+	if sqlSong.Link != song.Link {
+		sqlSong.Link = song.Link
+	}
+
+	if len(song.Text) == 0 {
+		if err = sqlSong.TextDelete(); err != nil {
+			return
+		}
+	} else {
+		if err = sqlSong.TextDelete(); err != nil {
+			return
+		}
+		sqlSong.Text = make([]CoupletEntity, 0, len(song.Text))
+		sqlSong.Text = song.Text
+	}
+
+	if err = DB.Save(&sqlSong).Error; err != nil {
+		return fmt.Errorf("song updateing error: %w", err)
+	}
+	return
+}
+
+// удалаяет текст песни из базы
+func (song SongEntity) TextDelete() (err error) {
+	fmt.Println(song.ID)
+	if err = DB.Where("song_id=?", song.ID).Unscoped().Delete(&CoupletEntity{}).Error; err != nil {
+		return fmt.Errorf("text by songID remove error", err)
+	}
+	return
+}
+
+// удаляет песню из базы
+func Remove(songID uint) (err error) {
+	song := SongEntity{}
+	if err = DB.Where("id=?", songID).Unscoped().Delete(&song).Error; err != nil {
+		return fmt.Errorf("song deleting error: %w", err)
+	}
+
+	err = song.TextDelete()
+	return
 }
