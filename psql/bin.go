@@ -331,7 +331,7 @@ func Remove(songID uint) (err error) {
 
 	if len(artist.Songs) == 0 {
 		if err = DB.Unscoped().Delete(&artist).Error; err != nil {
-			return fmt.Errorf("song deleting: artist deleting error:", err)
+			return fmt.Errorf("song deleting: artist deleting error: %w", err)
 		}
 	}
 
