@@ -303,7 +303,7 @@ func (song SongEntity) TextDelete() (err error) {
 	return
 }
 
-// удаляет песню из базы
+// удаляет песню из базы и Артиста, если у него не осталось песен в базе
 func Remove(songID uint) (err error) {
 	song := SongEntity{}
 	song.ID = songID
