@@ -297,9 +297,8 @@ func (song SongEntity) Update(artistName string, songID uint) (err error) {
 
 // удалаяет текст песни из базы
 func (song SongEntity) TextDelete() (err error) {
-	fmt.Println(song.ID)
 	if err = DB.Where("song_id=?", song.ID).Unscoped().Delete(&CoupletEntity{}).Error; err != nil {
-		return fmt.Errorf("text by songID remove error", err)
+		return fmt.Errorf("text by songID remove error: %w", err)
 	}
 	return
 }
@@ -307,10 +306,34 @@ func (song SongEntity) TextDelete() (err error) {
 // удаляет песню из базы
 func Remove(songID uint) (err error) {
 	song := SongEntity{}
+	song.ID = songID
+	err = song.TextDelete()
+	if err != nil {
+		return
+	}
+
+	if err = DB.Where("id=?", songID).Find(&song).Error; err != nil {
+		return fmt.Errorf("song remove: artist from song finding error: %w ", err)
+	}
+
 	if err = DB.Where("id=?", songID).Unscoped().Delete(&song).Error; err != nil {
 		return fmt.Errorf("song deleting error: %w", err)
 	}
 
-	err = song.TextDelete()
+	artist, err := song.GetArtist()
+	if err != nil {
+		return
+	}
+
+	if err = DB.Where("artist", artist.ID).Find(&artist.Songs).Error; err != nil {
+		return fmt.Errorf("song deleting: song by artist finding error: %w", err)
+	}
+
+	if len(artist.Songs) == 0 {
+		if err = DB.Unscoped().Delete(&artist).Error; err != nil {
+			return fmt.Errorf("song deleting: artist deleting error:", err)
+		}
+	}
+
 	return
 }

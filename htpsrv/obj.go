@@ -16,7 +16,7 @@ type (
 	}
 
 	URLQuerySongParamsEntity struct {
-		SongID uint
+		SongID uint `json:"id"`
 		Page   uint
 	}
 )
