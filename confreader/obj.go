@@ -7,7 +7,7 @@ type (
 	}
 
 	SrverEntity struct {
-		Port uint16 `env:"SERVER_PORT"`
+		Port int `env:"SERVER_PORT"`
 	}
 
 	DatabaseManagementSystemEntity struct {

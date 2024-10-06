@@ -5,13 +5,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 
 	"songlib/logger"
 	"songlib/psql"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/go-chi/chi"
+	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 var (
@@ -20,49 +22,43 @@ var (
 	SongTextPGstep int = 1
 )
 
-func New(port uint16) ServerEntity {
-	return ServerEntity{Http: &http.Server{Addr: fmt.Sprintf(":%d", port)}}
-}
+func Start(port string) (err error) {
+	r := chi.NewRouter()
+	r.Get("/info", getProcessing)
+	r.Get("/getAllTxt", bezModaKorocheBylo)
+	r.Post("/addsong", songAdd)
+	r.Put("/updateSong", putProcessing)
+	r.Delete("/delete", deleteSong)
 
-func (srv ServerEntity) Start() (err error) {
-	http.HandleFunc("/", router)
-	logger.Log.Info(fmt.Sprintf("server  started on port  %s", srv.Http.Addr))
-	err = srv.Http.ListenAndServe()
+	r.Get("/swagger/*", httpSwagger.Handler(
+		httpSwagger.URL("http://localhost:8080/swagger/doc.json"), //The url pointing to API definition
+	))
+	logger.Log.Info(fmt.Sprint("server  started"))
+	err = http.ListenAndServe(":"+port, r)
 	return
 }
 
-func router(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodGet {
-		getProcessing(w, r)
-	}
-	if r.Method == http.MethodPut {
-		putProcessing(w, r)
-	}
-	if r.Method == http.MethodPost {
-		postProcessing(w, r)
-	}
-	if r.Method == http.MethodDelete {
-		if j, err := io.ReadAll(r.Body); err != nil {
-			logger.Log.Debug(fmt.Errorf("query on deleting song reading error: %w", err).Error())
+func deleteSong(w http.ResponseWriter, r *http.Request) {
+	if j, err := io.ReadAll(r.Body); err != nil {
+		logger.Log.Debug(fmt.Errorf("query on deleting song reading error: %w", err).Error())
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	} else {
+		delSongQr := URLQuerySongParamsEntity{}
+		if err = json.Unmarshal(j, &delSongQr); err != nil {
+			logger.Log.Debug(fmt.Errorf("query on deleting song json parsing error: %w", err).Error())
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		if err = psql.Remove(delSongQr.SongID); err != nil {
+			logger.Log.Debug(err.Error())
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		} else {
-			delSongQr := URLQuerySongParamsEntity{}
-			if err = json.Unmarshal(j, &delSongQr); err != nil {
-				logger.Log.Debug(fmt.Errorf("query on deleting song json parsing error: %w", err).Error())
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
-
-			if err = psql.Remove(delSongQr.SongID); err != nil {
-				logger.Log.Debug(err.Error())
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			} else {
-				w.WriteHeader(http.StatusOK)
-			}
-
+			w.WriteHeader(http.StatusOK)
 		}
+
 	}
 }
 
@@ -70,184 +66,150 @@ func router(w http.ResponseWriter, r *http.Request) {
 
 // обработка GET звпроса
 func getProcessing(w http.ResponseWriter, r *http.Request) {
-	u, err := url.Parse(r.URL.String())
+	v := r.URL.Query()
+
+	params := URLQueryParamsEntity{Group: strings.ToLower(v.Get("group")), Song: strings.ToLower(v.Get("song")), TextFragment: strings.ToLower(v.Get("textFragment"))}
+
+	rd := v.Get("releaseDate")
+	if rd != "" {
+		var t time.Time
+		t, err := time.Parse("02.01.2006", rd)
+		if err != nil {
+			err = fmt.Errorf("query param time parsing error: %w", err)
+			logger.Log.Debug(err.Error())
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		params.ReleaseDate = t.Unix()
+	}
+
+	p := v.Get("page")
+	if p != "" {
+		pi, err := strconv.Atoi(p)
+		if err != nil {
+			err = fmt.Errorf("GET: query param `page` to integer type parsing error: %w", err)
+			logger.Log.Debug(err.Error())
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		params.Page = pi
+	}
+
+	if params.Page == 0 {
+		params.Page = 1
+	}
+
+	sresp, err := params.SongFindingAndPrepare(SongPGstep)
 	if err != nil {
 		logger.Log.Debug(err.Error())
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	v := u.Query()
 
-	switch u.Path {
-	case "/info":
-		params := URLQueryParamsEntity{Group: strings.ToLower(v.Get("group")), Song: strings.ToLower(v.Get("song")), TextFragment: strings.ToLower(v.Get("textFragment"))}
+	b, err := json.Marshal(sresp)
+	if err != nil {
+		logger.Log.Debug(err.Error())
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	w.Write(b)
+}
 
-		rd := v.Get("releaseDate")
-		if rd != "" {
-			var t time.Time
-			t, err := time.Parse("02.01.2006", rd)
-			if err != nil {
-				err = fmt.Errorf("query param time parsing error: %w", err)
-				logger.Log.Debug(err.Error())
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
-			params.ReleaseDate = t.Unix()
-		}
-
-		p := v.Get("page")
-		if p != "" {
-			pi, err := strconv.Atoi(p)
-			if err != nil {
-				err = fmt.Errorf("GET: query param `page` to integer type parsing error: %w", err)
-				logger.Log.Debug(err.Error())
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
-			params.Page = pi
-		}
-
-		if params.Page == 0 {
-			params.Page = 1
-		}
-
-		sresp, err := params.SongFindingAndPrepare(SongPGstep)
-		if err != nil {
-			logger.Log.Debug(err.Error())
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		b, err := json.Marshal(sresp)
-		if err != nil {
-			logger.Log.Debug(err.Error())
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-
-		w.Write(b)
-
-	case "/getAllTxt":
-		songID, err := strconv.Atoi(v.Get("id"))
-		if err != nil {
-			logger.Log.Debug(err.Error())
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		pageNum, err := strconv.Atoi(v.Get("page"))
-		if err != nil {
-			logger.Log.Debug(err.Error())
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		queryParams := URLQuerySongParamsEntity{SongID: uint(songID), Page: uint(pageNum)}
-		if queryParams.SongID == 0 {
-			w.WriteHeader(http.StatusBadRequest)
-			logger.Log.Debug("get all text input query param songID == 0, expected >0")
-			return
-		}
-
-		t, err := queryParams.SongTextFindingAndPrepare()
-		if err != nil {
-			logger.Log.Debug(err.Error())
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-
-		if b, err := json.Marshal(t); err != nil {
-			logger.Log.Debug(fmt.Errorf("song text json marshaling error: %w", err).Error())
-			w.WriteHeader(http.StatusNotFound)
-			return
-		} else {
-			w.Write(b)
-		}
-
-	default:
+func bezModaKorocheBylo(w http.ResponseWriter, r *http.Request) {
+	v := r.URL.Query()
+	songID, err := strconv.Atoi(v.Get("id"))
+	if err != nil {
+		logger.Log.Debug(err.Error())
 		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	pageNum, err := strconv.Atoi(v.Get("page"))
+	if err != nil {
+		logger.Log.Debug(err.Error())
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	queryParams := URLQuerySongParamsEntity{SongID: uint(songID), Page: uint(pageNum)}
+	if queryParams.SongID == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		logger.Log.Debug("get all text input query param songID == 0, expected >0")
+		return
 	}
 
+	t, err := queryParams.SongTextFindingAndPrepare()
+	if err != nil {
+		logger.Log.Debug(err.Error())
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	if b, err := json.Marshal(t); err != nil {
+		logger.Log.Debug(fmt.Errorf("song text json marshaling error: %w", err).Error())
+		w.WriteHeader(http.StatusNotFound)
+		return
+	} else {
+		w.Write(b)
+	}
 }
 
 // обработка PUT запроса
 func putProcessing(w http.ResponseWriter, r *http.Request) {
-	u, err := url.Parse(r.URL.String())
+	readByte, err := io.ReadAll(r.Body)
 	if err != nil {
-		logger.Log.Debug(err.Error())
 		w.WriteHeader(http.StatusBadRequest)
+		logger.Log.Debug(fmt.Errorf("updateSong body of query reading error: %w", err).Error())
 		return
 	}
-	switch u.Path {
-	case "/updateSong":
 
-		readByte, err := io.ReadAll(r.Body)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			logger.Log.Debug(fmt.Errorf("updateSong body of query reading error: %w", err).Error())
-			return
-		}
-
-		song := SongDetailEntity{}
-		if err = json.Unmarshal(readByte, &song); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			logger.Log.Debug(fmt.Errorf("update song body of qery parsing error: %w", err).Error())
-			return
-		}
-
-		if err = song.UpdateSong(); err != nil {
-			logger.Log.Debug(err.Error())
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-	default:
+	song := SongDetailEntity{}
+	if err = json.Unmarshal(readByte, &song); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
+		logger.Log.Debug(fmt.Errorf("update song body of qery parsing error: %w", err).Error())
+		return
+	}
+
+	if err = song.UpdateSong(); err != nil {
+		logger.Log.Debug(err.Error())
+		w.WriteHeader(http.StatusNotFound)
+		return
 	}
 }
 
 // обработка POST запроса
-func postProcessing(w http.ResponseWriter, r *http.Request) {
-	u, err := url.Parse(r.URL.String())
+func songAdd(w http.ResponseWriter, r *http.Request) {
+	q, err := io.ReadAll(r.Body)
 	if err != nil {
+		logger.Log.Debug(fmt.Errorf("addsong query reading error: %w", err).Error())
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	song := SongDetailEntity{}
+	if err = json.Unmarshal(q, &song); err != nil {
+		logger.Log.Debug(fmt.Errorf("addsong query parsing error: %w", err).Error())
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	if song.Group == "" || song.Name == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	tt, err := time.Parse("02.01.2006", song.ReleaseDate)
+	var rd int64 = 0
+	if err != nil {
+		logger.Log.Debug(fmt.Errorf("song addig: query param releaseDate parsing error: %w\n continue", err).Error())
+	} else {
+		rd = tt.Unix()
+	}
+
+	if err = psql.AddSong(song.Group, song.Name, song.Link, song.Text, rd); err != nil {
 		logger.Log.Debug(err.Error())
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	switch u.Path {
-	case "/addsong":
-		q, err := io.ReadAll(r.Body)
-		if err != nil {
-			logger.Log.Debug(fmt.Errorf("addsong query reading error: %w", err).Error())
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
+	w.WriteHeader(http.StatusOK)
 
-		song := SongDetailEntity{}
-		if err = json.Unmarshal(q, &song); err != nil {
-			logger.Log.Debug(fmt.Errorf("addsong query parsing error: %w", err).Error())
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		if song.Group == "" || song.Name == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		tt, err := time.Parse("02.01.2006", song.ReleaseDate)
-		var rd int64 = 0
-		if err != nil {
-			logger.Log.Debug(fmt.Errorf("song addig: query param releaseDate parsing error: %w\n continue", err).Error())
-		} else {
-			rd = tt.Unix()
-		}
-
-		if err = psql.AddSong(song.Group, song.Name, song.Link, song.Text, rd); err != nil {
-			logger.Log.Debug(err.Error())
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-	default:
-		w.WriteHeader(http.StatusBadRequest)
-	}
 }
 
 // находит песню и возвращает данные
