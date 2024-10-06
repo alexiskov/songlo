@@ -8,20 +8,23 @@ import (
 	"songlib/psql"
 	"strconv"
 
-	_ "github.com/swaggo/http-swagger/example/go-chi/docs"
+	_ "songlib/docs"
 )
 
-// @title Swagger Example API
-// @version 1.0
-// @description This is a sample server Petstore server.
-// @termsOfService http://swagger.io/terms/
+//	@title			songlibs
+//	@version		0.0.2
+//	@description	This is a sample server celler server.
+//	@termsOfService	http://swagger.io/terms/
 
-// @contact.name API Support
-// @contact.url http://www.swagger.io/support
-// @contact.email support@swagger.io
+//	@contact.name	API Support
+//	@contact.url	http://www.swagger.io/support
+//	@contact.email	support@swagger.io
 
-// @license.name Apache 2.0
-// @license.url http://www.apache.org/licenses/LICENSE-2.0.html
+//	@license.name	personal
+//	@license.url	http://www.youtube.com
+
+//	@host		localhost:8080
+//	@BasePath	/
 
 func main() {
 

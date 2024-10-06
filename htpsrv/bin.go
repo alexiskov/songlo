@@ -25,7 +25,7 @@ var (
 func Start(port string) (err error) {
 	r := chi.NewRouter()
 	r.Get("/info", getProcessing)
-	r.Get("/getAllTxt", bezModaKorocheBylo)
+	r.Get("/getAllTxt", textByCouplet)
 	r.Post("/addsong", songAdd)
 	r.Put("/updateSong", putProcessing)
 	r.Delete("/delete", deleteSong)
@@ -38,6 +38,12 @@ func Start(port string) (err error) {
 	return
 }
 
+// @Summary	delete song by id
+// @param		URLQuerySongParamsEntity	body	htpsrv.URLQuerySongParamsEntity	true	"song id"
+// @Accept		json
+// @Succes		200  "status is OK"
+// @failure	400	"no body of respose data"
+// @Router		/delete [delete]
 func deleteSong(w http.ResponseWriter, r *http.Request) {
 	if j, err := io.ReadAll(r.Body); err != nil {
 		logger.Log.Debug(fmt.Errorf("query on deleting song reading error: %w", err).Error())
@@ -64,7 +70,18 @@ func deleteSong(w http.ResponseWriter, r *http.Request) {
 
 // ------------ QUERY PROCESSING -----------
 
-// обработка GET звпроса
+// Get song godoc
+//
+//	@Summary	get query song inf
+//	@param		group			query	string	false	"group name"
+//	@param		song			query	string	false	"song name"
+//	@param		releaseDate		query	string	false	"format 02.01.2006"
+//	@param		textFragment	query	string	false	"some text for by couplet search"
+//	@param		page			query	string	false	"pagination num of page"
+//	@Accept		x-www-form-urlencoded
+//	@Succes		200 {object} htpsrv.SongDetailEntity "status is OK"
+//	@failure	400	"no body of respose data"
+//	@Router		/info [get]
 func getProcessing(w http.ResponseWriter, r *http.Request) {
 	v := r.URL.Query()
 
@@ -115,7 +132,16 @@ func getProcessing(w http.ResponseWriter, r *http.Request) {
 	w.Write(b)
 }
 
-func bezModaKorocheBylo(w http.ResponseWriter, r *http.Request) {
+// Get song text by couplet num
+//
+//	@Summary	get query to song text
+//	@param		id		query	string	false	"song id"
+//	@param		page	query	string	false	"pagination num of page"
+//	@Accept		x-www-form-urlencoded
+//	@Succes		200 {object} htpsrv.SongTextEntity "status is OK"
+//	@failure	400	"no body of respose data"
+//	@Router		/getAllTxt [get]
+func textByCouplet(w http.ResponseWriter, r *http.Request) {
 	v := r.URL.Query()
 	songID, err := strconv.Atoi(v.Get("id"))
 	if err != nil {
@@ -123,12 +149,16 @@ func bezModaKorocheBylo(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	pageNum, err := strconv.Atoi(v.Get("page"))
-	if err != nil {
-		logger.Log.Debug(err.Error())
-		w.WriteHeader(http.StatusBadRequest)
-		return
+	var pageNum int
+	if v.Get("page") != "" {
+		pageNum, err = strconv.Atoi(v.Get("page"))
+		if err != nil {
+			logger.Log.Debug(err.Error())
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 	}
+
 	queryParams := URLQuerySongParamsEntity{SongID: uint(songID), Page: uint(pageNum)}
 	if queryParams.SongID == 0 {
 		w.WriteHeader(http.StatusBadRequest)
@@ -153,6 +183,13 @@ func bezModaKorocheBylo(w http.ResponseWriter, r *http.Request) {
 }
 
 // обработка PUT запроса
+//
+//	@param		SongDetailEntity	body	htpsrv.SongDetailEntity	false	"any or all parameter updae"
+//	@Summary	update song data
+//	@Accept		json-api
+//	@Success	200	"is ok"
+//	@failure	400	"no body response data"
+//	@router		/updateSong [put]
 func putProcessing(w http.ResponseWriter, r *http.Request) {
 	readByte, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -176,6 +213,14 @@ func putProcessing(w http.ResponseWriter, r *http.Request) {
 }
 
 // обработка POST запроса
+//
+//	@param		SongDetailEntity	body	htpsrv.SongDetailEntity	false	"create a new song"
+//
+//	@Summary	create song data
+//	@Accept		json-api
+//	@Success	200	"is ok"
+//	@failure	400	"no body response data"
+//	@router		/addsong [post]
 func songAdd(w http.ResponseWriter, r *http.Request) {
 	q, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -284,13 +329,17 @@ func (queryParams URLQuerySongParamsEntity) SongTextFindingAndPrepare() (couplet
 // обновляет данные песни
 func (queryParams SongDetailEntity) UpdateSong() (err error) {
 	var tt time.Time
+	tU := tt.Unix()
 	if queryParams.ReleaseDate != "" {
 		tt, err = time.Parse("02.01.2006", queryParams.ReleaseDate)
 		if err != nil {
 			return fmt.Errorf("update song: time parsing error: %w", err)
 		}
+	} else {
+		tU = 0
 	}
-	song := psql.SongEntity{Name: queryParams.Name, ReleaseDate: tt.Unix(), Link: queryParams.Link}
+
+	song := psql.SongEntity{Name: queryParams.Name, ReleaseDate: tU, Link: queryParams.Link}
 	tsTextArr := strings.Split(queryParams.Text, "\n\n")
 	for _, txt := range tsTextArr {
 		song.Text = append(song.Text, psql.CoupletEntity{Text: txt})

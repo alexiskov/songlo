@@ -1,0 +1,132 @@
+basePath: /
+definitions:
+  htpsrv.SongDetailEntity:
+    properties:
+      group:
+        type: string
+      id:
+        type: integer
+      link:
+        type: string
+      releaseDate:
+        type: string
+      song:
+        type: string
+      text:
+        type: string
+    type: object
+  htpsrv.URLQuerySongParamsEntity:
+    properties:
+      id:
+        type: integer
+      page:
+        type: integer
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@swagger.io
+    name: API Support
+    url: http://www.swagger.io/support
+  description: This is a sample server celler server.
+  license:
+    name: personal
+    url: http://www.youtube.com
+  termsOfService: http://swagger.io/terms/
+  title: songlibs
+  version: 0.0.2
+paths:
+  /addsong:
+    post:
+      consumes:
+      - application/vnd.api+json
+      parameters:
+      - description: create a new song
+        in: body
+        name: SongDetailEntity
+        schema:
+          $ref: '#/definitions/htpsrv.SongDetailEntity'
+      responses:
+        "200":
+          description: is ok
+        "400":
+          description: no body response data
+      summary: create song data
+  /delete:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: song id
+        in: body
+        name: URLQuerySongParamsEntity
+        required: true
+        schema:
+          $ref: '#/definitions/htpsrv.URLQuerySongParamsEntity'
+      responses:
+        "400":
+          description: no body of respose data
+      summary: delete song by id
+  /getAllTxt:
+    get:
+      consumes:
+      - application/x-www-form-urlencoded
+      parameters:
+      - description: song id
+        in: query
+        name: id
+        type: string
+      - description: pagination num of page
+        in: query
+        name: page
+        type: string
+      responses:
+        "400":
+          description: no body of respose data
+      summary: get query to song text
+  /info:
+    get:
+      consumes:
+      - application/x-www-form-urlencoded
+      parameters:
+      - description: group name
+        in: query
+        name: group
+        type: string
+      - description: song name
+        in: query
+        name: song
+        type: string
+      - description: format 02.01.2006
+        in: query
+        name: releaseDate
+        type: string
+      - description: some text for by couplet search
+        in: query
+        name: textFragment
+        type: string
+      - description: pagination num of page
+        in: query
+        name: page
+        type: string
+      responses:
+        "400":
+          description: no body of respose data
+      summary: get query song inf
+  /updateSong:
+    put:
+      consumes:
+      - application/vnd.api+json
+      parameters:
+      - description: any or all parameter updae
+        in: body
+        name: SongDetailEntity
+        schema:
+          $ref: '#/definitions/htpsrv.SongDetailEntity'
+      responses:
+        "200":
+          description: is ok
+        "400":
+          description: no body response data
+      summary: update song data
+swagger: "2.0"
